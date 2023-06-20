@@ -1,4 +1,18 @@
 import React from 'react';
+import { CacheProvider } from '@emotion/react';
+import createCache from '@emotion/cache';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import NoteLabel from "./components/NoteLabel";
+
+const muiCache = createCache({
+    key: 'mui',
+    prepend: true,
+});
+const materialTheme = createTheme();
+
 const aubio = window.aubio;
 
 const context = {
@@ -38,11 +52,15 @@ const getNoteName = (frequency) => {
 }
 
 const getCents = (frequency) => {
-    const note = getNote(frequency);
-    const standardFrequency = 440 * Math.pow(2, (note - 69) / 12);
+    const standardFrequency = getReferenceFrequency(frequency)
     return Math.floor(
         (1200 * Math.log(frequency / standardFrequency)) / Math.log(2)
     )
+}
+
+const getReferenceFrequency = (frequency) => {
+    const note = getNote(frequency);
+    return 440 * Math.pow(2, (note - 69) / 12);
 }
 
 const start = (onFrequencyGet) => {
@@ -112,28 +130,51 @@ const getNoteFromFrequency = (frequency) => {
 }
 
 function App() {
-    const currentNote = React.useRef(null);
-    const [currentNoteName, setCurrentNoteName] = React.useState('');
+    const referenceNote = React.useRef(null);
+    const counter = React.useRef(0);
+    const [currentNote, setCurrentNote] = React.useState(null);
+    const [noteRange, setNoteRange] = React.useState(0);
 
     const checkNote = React.useCallback((frequency) => {
         const note = getNoteFromFrequency(frequency);
-        if (note.value === currentNote.current.value) {
-            currentNote.current = getRandomNote();
-            setCurrentNoteName(currentNote.current.name + '_' + currentNote.current.octave);
+        setNoteRange(note.value - referenceNote.current.value);
+        if (note.value === referenceNote.current.value) {
+            counter.current++;
+        }
+        if (counter.current > 5) {
+            referenceNote.current = getRandomNote();
+            counter.current = 0;
+            setCurrentNote({
+                name: referenceNote.current.name,
+                octave: referenceNote.current.octave
+            });
         }
     }, []);
 
     const handleStart = React.useCallback(() => {
-        currentNote.current = getRandomNote();
-        setCurrentNoteName(currentNote.current.name + '_' + currentNote.current.octave);
+        referenceNote.current = getRandomNote();
+        setCurrentNote({
+            name: referenceNote.current.name,
+            octave: referenceNote.current.octave
+        });
         start(checkNote);
     }, [checkNote]);
 
     return (
-        <div>
-            <div>{currentNoteName}</div>
-            <button onClick={handleStart}>TEST</button>
-        </div>
+        <CacheProvider value={muiCache}>
+            <ThemeProvider theme={materialTheme}>
+                <CssBaseline />
+                <Box display={'flex'} justifyContent={'center'} flexDirection={'column'} alignItems={'center'} position={'absolute'} width={'100%'} height={'100%'}>
+                    <Box width={200} display={'flex'} justifyContent={'center'} flexDirection={'column'}>
+                        {currentNote && <NoteLabel name={currentNote.name} octave={currentNote.octave} />}
+                        {currentNote && <div>{noteRange}</div>}
+                        {!currentNote && <Box>
+                            <Button onClick={handleStart} variant={'contained'}>Начать</Button>
+                        </Box> }
+                    </Box>
+                </Box>
+            </ThemeProvider>
+        </CacheProvider>
     );
 }
 
